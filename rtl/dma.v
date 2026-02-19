@@ -31,7 +31,7 @@ module dma(
     reg [31:0] src_reg; 
     reg [31:0] dest_reg;
     reg [31:0] len_reg;
-    reg [2:0] state;
+    reg [2:0] state, next_state;
     reg[31:0] data_buffer;
 
     
@@ -47,6 +47,7 @@ module dma(
             mem_write<=0; 
             data_buffer <= 0; 
         end else begin
+            state<=next_state;
 
         case(state)
 
@@ -54,18 +55,16 @@ module dma(
                 busy<=0;
                 done<=0;
                 mem_r_en<=0;
-                mem_w_en<=0;             
-                if(start)begin
-                    state <= READ;
-                    busy <= 1;
+                mem_w_en<=0; 
+                if (start)begin
+                    busy<=1;
                     src_reg<=src_addr;
                     dest_reg<=dest_addr;
-                    len_reg<=len;    
-                end               
+                    len_reg<=len;
+                end                                      
             end
 
             READ:begin
-                state<=WAIT;
                 mem_addr<=src_reg;
                 mem_r_en<=1;
                 mem_w_en<=0;
@@ -74,12 +73,12 @@ module dma(
             WAIT: begin
                 mem_r_en <= 0;   
                 mem_w_en <= 0;
-                state <= CAPTURE;
+                
             end
 
 
             CAPTURE:begin
-                state<=WRITE;
+                
                 data_buffer<=mem_read;
                 
             end
@@ -93,11 +92,7 @@ module dma(
                 src_reg  <= src_reg + 4;
                 dest_reg <= dest_reg + 4;
 
-                len_reg <= len_reg-1;
-                if (len_reg == 1)
-                    state <= DONE;
-                else
-                    state <= READ;
+                len_reg <= len_reg-1;    
             end
 
             DONE:begin
@@ -105,12 +100,31 @@ module dma(
                 done <=1;
                 mem_r_en <= 0;
                 mem_w_en <= 0;
-                state <= IDLE;
+                
             end
             
 
         endcase 
         end 
+    
+    end
+
+    always @(*) begin
+    next_state = state;   
+
+        case (state)
+            IDLE:    if (start) next_state = READ;
+            READ:    next_state = WAIT;
+            WAIT:    next_state = CAPTURE;
+            CAPTURE: next_state = WRITE;
+            WRITE:   next_state = (len_reg == 1) ? DONE : READ;
+            DONE:    next_state = IDLE;
+        endcase
+    end
+
+
+
+endmodule
     
     end
 
